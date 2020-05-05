@@ -1,24 +1,27 @@
+<!---
 [![Build Status](https://travis-ci.org/python-excel/xlrd.svg?branch=master)](https://travis-ci.org/python-excel/xlrd)
 [![Coverage Status](https://coveralls.io/repos/github/python-excel/xlrd/badge.svg?branch=master)](https://coveralls.io/github/python-excel/xlrd?branch=master)
 [![Documentation Status](https://readthedocs.org/projects/xlrd/badge/?version=latest)](http://xlrd.readthedocs.io/en/latest/?badge=latest)
 [![PyPI version](https://badge.fury.io/py/xlrd.svg)](https://badge.fury.io/py/xlrd)
+--->
+### xlrd3
+This is a fork of original archived [xlrd](https://github.com/python-excel/xlrd) project. 
+This fork aims to fix bugs that existing in `xlrd` and improve it features. 
+As the name of this fork implies, it is going to drop EOL `python2` and move toward `python3`.   
 
-### xlrd
+### When to use xlrd3
+If you just need to **read** and deal with both `xlsx` and `xls`, use `xlrd3`. 
+Then if you want to export your data to other excel file, use [OpenPyXL](https://openpyxl.readthedocs.io/en/stable/) or [xlsxWriter](https://github.com/jmcnamara/XlsxWriter)
+If you need to **edit** `xlsx` (read and write) and sure that `xls` never appear in your workflow, you are advised to use [OpenPyXL](https://openpyxl.readthedocs.io/en/stable/) instead.
 
-PLEASE NOTE: This library currently has no active maintainers. You are advised to use [OpenPyXL](https://openpyxl.readthedocs.io/en/stable/) instead. If you absolutely have to read .xls files, then
-xlrd will probably still work for you, but please do not submit issues complaining that this library
-will not read your corrupted or non-standard file. Just because Excel or some other piece of software opens your
-file does not mean it is a valid xls file.
-
-For more background to this: https://groups.google.com/d/msg/python-excel/P6TjJgFVjMI/g8d0eWxTBQAJ
 
 **Purpose**: Provide a library for developers to use to extract data from Microsoft Excel (tm) spreadsheet files. It is not an end-user tool.
 
-**Author**: John Machin
+**Original Author**: John Machin
 
 **Licence**: BSD-style (see licences.py)
 
-**Versions of Python supported**: 2.7, 3.4+.
+**Versions of Python supported**: 3.7+.
 
 **Outside scope**: xlrd will safely and reliably ignore any of these if present in the file:
 
