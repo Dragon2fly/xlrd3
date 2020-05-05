@@ -828,10 +828,18 @@ class BetterBook(Book):
         for relid, reltype in x12sheet.relid2reltype.items():
             if reltype == 'comments':
                 comments_fname = x12sheet.relid2path.get(relid)
-                if comments_fname and comments_fname in self.x12component_names:
-                    comments_stream = self.x12zf.open(comments_fname)
-                    x12sheet.process_comments_stream(comments_stream)
-                    del comments_stream
+                if not comments_fname:
+                    continue
+
+                fname1 = self.x12component_names.get(comments_fname)
+                fname2 = self.x12component_names.get(comments_fname.replace('\\', '/'))
+                fname = fname1 or fname2
+                if not fname:
+                    continue
+
+                comments_stream = self.x12zf.open(fname)
+                x12sheet.process_comments_stream(comments_stream)
+                del comments_stream
 
         sheet.tidy_dimensions()
         self._sheet_list[sh_number] = sheet
