@@ -23,54 +23,31 @@ if sys.version.startswith("IronPython"):
     # print >> sys.stderr, "...importing encodings"
     import encodings
 
-try:
-    import mmap
-    MMAP_AVAILABLE = 1
-except ImportError:
-    MMAP_AVAILABLE = 0
-USE_MMAP = MMAP_AVAILABLE
 
-def open_workbook(filename=None,
-                  logfile=sys.stdout,
-                  verbosity=0,
-                  use_mmap=USE_MMAP,
-                  file_contents=None,
-                  encoding_override=None,
-                  formatting_info=False,
-                  on_demand=False,
-                  ragged_rows=False,
-                  ignore_workbook_corruption=False
-                  ):
+def open_workbook(filename=None, logfile=sys.stdout, verbosity=0, use_mmap=True, file_contents=None,
+                  encoding_override=None, formatting_info=False, on_demand=False, ragged_rows=False,
+                  ignore_workbook_corruption=False):
     """
     Open a spreadsheet file for data extraction.
 
     :param filename: The path to the spreadsheet file to be opened.
-
     :param logfile: An open file to which messages and diagnostics are written.
-
-    :param verbosity: Increases the volume of trace material written to the
-                      logfile.
-
+    :param verbosity: Increases the volume of trace material written to the logfile.
     :param use_mmap:
-
       Whether to use the mmap module is determined heuristically.
       Use this arg to override the result.
-
       Current heuristic: mmap is used if it exists.
 
     :param file_contents:
-
       A string or an :class:`mmap.mmap` object or some other behave-alike
       object. If ``file_contents`` is supplied, ``filename`` will not be used,
       except (possibly) in messages.
 
     :param encoding_override:
-
       Used to overcome missing or bad codepage information
       in older-version files. See :doc:`unicode`.
 
     :param formatting_info:
-
       The default is ``False``, which saves memory.
       In this case, "Blank" cells, which are those with their own formatting
       information but no data, are treated as empty by ignoring the file's
@@ -88,12 +65,10 @@ def open_workbook(filename=None,
       xlsx file.
 
     :param on_demand:
-
       Governs whether sheets are all loaded initially or when demanded
       by the caller. See :doc:`on_demand`.
 
     :param ragged_rows:
-
       The default of ``False`` means all rows are padded out with empty cells so
       that all rows have the same size as found in
       :attr:`~xlrd.sheet.Sheet.ncols`.
@@ -102,9 +77,7 @@ def open_workbook(filename=None,
       This can result in substantial memory savings if rows are of widely
       varying sizes. See also the :meth:`~xlrd.sheet.Sheet.row_len` method.
 
-
     :param ignore_workbook_corruption:
-
       This option allows to read corrupted workbooks.
       When ``False`` you may face CompDocError: Workbook corruption.
       When ``True`` that exception will be ignored.
@@ -119,7 +92,7 @@ def open_workbook(filename=None,
         filename = os.path.expanduser(filename)
         with open(filename, "rb") as f:
             peek = f.read(peeksz)
-    if peek == b"PK\x03\x04": # a ZIP file
+    if peek == b"PK\x03\x04":  # a ZIP file
         if file_contents:
             zf = zipfile.ZipFile(timemachine.BYTES_IO(file_contents))
         else:
@@ -154,18 +127,10 @@ def open_workbook(filename=None,
         raise XLRDError('ZIP file contents not a known type of workbook')
 
     from . import book
-    bk = book.open_workbook_xls(
-        filename=filename,
-        logfile=logfile,
-        verbosity=verbosity,
-        use_mmap=use_mmap,
-        file_contents=file_contents,
-        encoding_override=encoding_override,
-        formatting_info=formatting_info,
-        on_demand=on_demand,
-        ragged_rows=ragged_rows,
-        ignore_workbook_corruption=ignore_workbook_corruption,
-    )
+    bk = book.open_workbook_xls(filename=filename, logfile=logfile, verbosity=verbosity, use_mmap=use_mmap,
+                                file_contents=file_contents, encoding_override=encoding_override,
+                                formatting_info=formatting_info, on_demand=on_demand, ragged_rows=ragged_rows,
+                                ignore_wb_corruption=ignore_workbook_corruption, )
     return bk
 
 

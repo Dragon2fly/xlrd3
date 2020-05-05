@@ -3,11 +3,9 @@
 # This module is part of the xlrd package, which is released under a BSD-style licence.
 ##
 
-from __future__ import print_function, unicode_literals
-
 import gc
 import re
-import sys
+from importlib import import_module
 from os.path import join, normpath
 
 from .biffh import (
@@ -32,24 +30,18 @@ def ensure_elementtree_imported(verbosity, logfile):
     global ET, ET_has_iterparse, Element_has_iter
     if ET is not None:
         return
-    if "IronPython" in sys.version:
-        import xml.etree.ElementTree as ET
-        #### 2.7.2.1: fails later with
-        #### NotImplementedError: iterparse is not supported on IronPython. (CP #31923)
-    else:
-        try: import defusedxml.cElementTree as ET
+
+    candidates = ["defusedxml.cElementTree", "lxml.etree", "xml.etree.ElementTree"]
+    for name in candidates:
+        try:
+            lib = import_module(name)
+            globals()['ET'] = lib
+            break
         except ImportError:
-            try: import xml.etree.cElementTree as ET
-            except ImportError:
-                try: import cElementTree as ET
-                except ImportError:
-                    try: import lxml.etree as ET
-                    except ImportError:
-                        try: import xml.etree.ElementTree as ET
-                        except ImportError:
-                            try: import elementtree.ElementTree as ET
-                            except ImportError:
-                                raise Exception("Failed to import an ElementTree implementation")
+            pass
+    else:
+        raise Exception("Failed to import an ElementTree implementation")
+
     if hasattr(ET, 'iterparse'):
         _dummy_stream = BYTES_IO(b'')
         try:
@@ -140,9 +132,9 @@ F_TAG = U_SSML12 + 'f'  # cell child: formula
 IS_TAG = U_SSML12 + 'is'  # cell child: inline string
 
 
-def unescape(s,
-             subber=re.compile(r'_x[0-9A-Fa-f]{4,4}_', re.UNICODE).sub,
-             repl=lambda mobj: unichr(int(mobj.group(0)[2:6], 16))):
+def unescape(s, subber=None, repl=None):
+    subber = subber or re.compile(r'_x[0-9A-Fa-f]{4}_', re.UNICODE).sub
+    repl = repl or (lambda mobj: unichr(int(mobj.group(0)[2:6], 16)))
     if "_" in s:
         return subber(repl, s)
     return s
@@ -181,7 +173,8 @@ def map_attributes(amap, elem, obj):
         if not xml_attr:
             setattr(obj, obj_attr, cnv_func_or_const)
             continue
-        if not obj_attr: continue  #### FIX ME ####
+        if not obj_attr:
+            continue  #### FIX ME ####
         raw_value = elem.get(xml_attr)
         cooked_value = cnv_func_or_const(raw_value)
         setattr(obj, obj_attr, cooked_value)
@@ -871,14 +864,8 @@ class BetterBook(Book):
         gc.collect()
 
 
-def open_workbook_2007_xml(zf,
-                           component_names,
-                           logfile=sys.stdout,
-                           verbosity=0,
-                           use_mmap=0,
-                           formatting_info=0,
-                           on_demand=0,
-                           ragged_rows=0):
+def open_workbook_2007_xml(zf, component_names, logfile=sys.stdout, verbosity=0, use_mmap=0, formatting_info=0,
+                           on_demand=0, ragged_rows=0):
     ensure_elementtree_imported(verbosity, logfile)
     bk = BetterBook()
     bk.x12zf = zf
