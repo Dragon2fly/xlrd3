@@ -4,7 +4,6 @@
 #
 
 import sys
-import unittest
 from gc import get_referents
 from types import FunctionType, ModuleType
 
@@ -41,21 +40,17 @@ def getsize(obj):
 # ------------------------------------------------------------------------------------
 
 
-class TestXlsMMAP(unittest.TestCase):
-    # Test opening xlsx on_demand
+def test_xls_on_demand_mmap():
+    test_file = from_this_dir('test_high_mem_mmap.xls')
+    workbook_size_old = 103761454   # bytes
 
-    def test_xls_on_demand_mmap(self):
-        test_file = from_this_dir('test_high_mem_mmap.xls')
-        workbook_size_old = 103761454   # bytes
+    # with on_demand, everything should be quick
+    with xlrd.open_workbook(test_file, on_demand=True) as workbook:
+        # access the last sheet
+        worksheet = workbook.sheet_by_name('VERB')
+        assert "stub_data" == worksheet.cell(rowx=56, colx=10).value
 
-        # with on_demand, everything should be quick
-        with xlrd.open_workbook(test_file, on_demand=True) as workbook:
-            # access the last sheet
-            worksheet = workbook.sheet_by_name('VERB')
-            self.assertEqual("stub_data", worksheet.cell(rowx=56, colx=10).value,
-                             "Result should be the same as without on_demand")
+        workbook_size_new = getsize(workbook)
 
-            workbook_size_new = getsize(workbook)
-
-        # with the new code path, the size of workbook should be very small
-        self.assertLessEqual(50, workbook_size_old / workbook_size_new)
+    # with the new code path, the size of workbook should be very small
+    assert 50 <= workbook_size_old / workbook_size_new

@@ -5,9 +5,10 @@
 
 import sys
 import time
-import unittest
 from gc import get_referents
 from types import FunctionType, ModuleType
+
+import pytest
 
 import xlrd
 
@@ -25,7 +26,7 @@ BLACKLIST = type, ModuleType, FunctionType
 def getsize(obj):
     """sum size of object & members."""
     if isinstance(obj, BLACKLIST):
-        raise TypeError('getsize() does not take argument of type: '+ str(type(obj)))
+        raise TypeError('getsize() does not take argument of type: ' + str(type(obj)))
     seen_ids = set()
     size = 0
     objects = [obj]
@@ -39,55 +40,51 @@ def getsize(obj):
         objects = get_referents(*need_referents)
     return size
 
+
 # ------------------------------------------------------------------------------------
 
 
-class TestXlsxOnDemand(unittest.TestCase):
-    # Test opening xlsx on_demand
+def test_xlsx_on_demand():
+    test_file = from_this_dir('test_high_mem.xlsx')
 
-    def test_xlsx_on_demand(self):
-        test_file = from_this_dir('test_high_mem.xlsx')
+    # without on_demand, time and memory go high
+    # t0 = time.perf_counter()
+    # with xlrd.open_workbook(test_file) as workbook:
+    #     # access the last sheet
+    #     worksheet = workbook.sheet_by_name("Store days 100%")
+    #     test_val = worksheet.cell(rowx=49, colx=24).value
+    #     assertEqual(test_val, 59, "Read out data should equal written one")
+    #
+    #     # it took about 54 seconds and memory usage should go up around 300MB
+    #     original_load_time = time.perf_counter() - t0
 
-        # without on_demand, time and memory go high
-        # t0 = time.perf_counter()
-        # with xlrd.open_workbook(test_file) as workbook:
-        #     # access the last sheet
-        #     worksheet = workbook.sheet_by_name("Store days 100%")
-        #     test_val = worksheet.cell(rowx=49, colx=24).value
-        #     self.assertEqual(test_val, 59, "Read out data should equal written one")
-        #
-        #     # it took about 54 seconds and memory usage should go up around 300MB
-        #     original_load_time = time.perf_counter() - t0
+    # with on_demand, everything should be quick
+    t0 = time.time()
+    with xlrd.open_workbook(test_file, on_demand=True) as workbook:
+        # access the last sheet
+        worksheet = workbook.sheet_by_name("Store days 100%")
+        assert 59.0 == worksheet.cell(rowx=49, colx=24).value
 
-        # with on_demand, everything should be quick
-        t0 = time.time()
-        with xlrd.open_workbook(test_file, on_demand=True) as workbook:
-            # access the last sheet
-            worksheet = workbook.sheet_by_name("Store days 100%")
-            self.assertEqual(59.0, worksheet.cell(rowx=49, colx=24).value,
-                             "Result should be the same as without on_demand")
+        # it took around 14 seconds and memory usage about 83MB for this sheet
+        new_load_time = time.time() - t0
 
-            # it took around 14 seconds and memory usage about 83MB for this sheet
-            new_load_time = time.time() - t0
+    # check if the load time is indeed faster
+    assert new_load_time < 35
 
-        # check if the load time is indeed faster
-        self.assertLessEqual(new_load_time, 35)
 
-    def test_xlsx_unload_sheet(self):
-        test_file = from_this_dir('test_high_mem.xlsx')
+def test_xlsx_unload_sheet():
+    test_file = from_this_dir('test_high_mem.xlsx')
 
-        with xlrd.open_workbook(test_file, on_demand=True) as workbook:
-            # access the last sheet, around 14 second to load
-            wb_size_begin = getsize(workbook)
+    with xlrd.open_workbook(test_file, on_demand=True) as workbook:
+        # access the last sheet, around 14 second to load
+        wb_size_begin = getsize(workbook)
 
-            worksheet = workbook.sheet_by_name("Store days 100%")
-            # wb_size_now = getsize(workbook)
+        worksheet = workbook.sheet_by_name("Store days 100%")
+        # wb_size_now = getsize(workbook)
 
-            self.assertEqual(59.0, worksheet.cell(rowx=49, colx=24).value,
-                             "Result should be the same as without on_demand")
+        assert 59.0 == worksheet.cell(rowx=49, colx=24).value
 
-            workbook.unload_sheet("Store days 100%")
-            wb_size_then = getsize(workbook)
+        workbook.unload_sheet("Store days 100%")
+        wb_size_then = getsize(workbook)
 
-        ratio = abs(wb_size_begin/wb_size_then - 1)
-        self.assertEqual(round(ratio, ndigits=2), 0.0)
+    assert wb_size_begin == pytest.approx(wb_size_then, 1e-3)
