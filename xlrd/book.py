@@ -16,7 +16,7 @@ unpack = struct.unpack
 
 empty_cell = sheet.empty_cell  # for exposure to the world ...
 
-DEBUG = True
+DEBUG = False
 USE_FANCY_CD = True
 TOGGLE_GC = False
 # gc.set_debug(gc.DEBUG_STATS)

@@ -3,8 +3,6 @@
 # This script is part of the xlrd package, which is released under a
 # BSD-style licence.
 
-from __future__ import print_function
-
 cmd_doc = """
 Commands:
 
@@ -31,7 +29,7 @@ xfc             Print "XF counts" and cell-type counts -- see code for details
 
 options = None
 if __name__ == "__main__":
-    import xlrd
+    import xlrd3 as xlrd
     import sys
     import time
     import glob

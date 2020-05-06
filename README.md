@@ -5,14 +5,20 @@
 [![PyPI version](https://badge.fury.io/py/xlrd.svg)](https://badge.fury.io/py/xlrd)
 --->
 ### xlrd3
-This is a fork of original archived [xlrd](https://github.com/python-excel/xlrd) project. 
+A fork of original archived [xlrd](https://github.com/python-excel/xlrd) project. 
 This fork aims to fix bugs that existing in `xlrd` and improve it features. 
-As the name of this fork implies, it is going to drop EOL `python2` and move toward `python3`.   
+As the name of this fork implies, python2 support is dropped.   
+
+At version 1.0.0, xlrd3 on pair with xlrd version 1.2.0 with following bugs fixed:
+
+* MemoryError: `on_demand` with `mmap` still causes some `xls` to be read the whole file into memory.
+* `on_demand` not supported for `xlsx`
+* Parsing comments failed for `xlsx` on Windows platform.
 
 ### When to use xlrd3
 If you just need to **read** and deal with both `xlsx` and `xls`, use `xlrd3`. 
-Then if you want to export your data to other excel file, use [OpenPyXL](https://openpyxl.readthedocs.io/en/stable/) or [xlsxWriter](https://github.com/jmcnamara/XlsxWriter)
-If you need to **edit** `xlsx` (read and write) and sure that `xls` never appear in your workflow, you are advised to use [OpenPyXL](https://openpyxl.readthedocs.io/en/stable/) instead.
+Then if you want to export your data to other excel files, use [OpenPyXL](https://openpyxl.readthedocs.io/en/stable/) or [xlsxWriter](https://github.com/jmcnamara/XlsxWriter).
+If you need to **edit** `xlsx` (read and write) and are sure that `xls` never appear in your workflow, you are advised to use [OpenPyXL](https://openpyxl.readthedocs.io/en/stable/) instead.
 
 
 **Purpose**: Provide a library for developers to use to extract data from Microsoft Excel (tm) spreadsheet files. It is not an end-user tool.
@@ -21,9 +27,9 @@ If you need to **edit** `xlsx` (read and write) and sure that `xls` never appear
 
 **Licence**: BSD-style (see licences.py)
 
-**Versions of Python supported**: 3.7+.
+**Versions of Python supported**: 3.6+.
 
-**Outside scope**: xlrd will safely and reliably ignore any of these if present in the file:
+**Outside scope**: xlrd3 will safely and reliably ignore any of these if present in the file:
 
 *   Charts, Macros, Pictures, any other embedded object. WARNING: currently this includes embedded worksheets.
 *   VBA modules
@@ -33,10 +39,12 @@ If you need to **edit** `xlsx` (read and write) and sure that `xls` never appear
 *   Autofilters, advanced filters, pivot tables, conditional formatting, data validation
 *   Handling password-protected (encrypted) files.
 
+**Installation**:`$pip install xlrd3`
+
 **Quick start**:
 
 ```python
-import xlrd
+import xlrd3 as xlrd
 book = xlrd.open_workbook("myfile.xls")
 print("The number of worksheets is {0}".format(book.nsheets))
 print("Worksheet name(s): {0}".format(book.sheet_names()))
