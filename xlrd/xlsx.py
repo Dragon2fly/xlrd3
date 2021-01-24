@@ -22,12 +22,10 @@ DEBUG = 0
 DLF = sys.stdout  # Default Log File
 
 ET = None
-ET_has_iterparse = False
-Element_has_iter = False
 
 
 def ensure_elementtree_imported(verbosity, logfile):
-    global ET, ET_has_iterparse, Element_has_iter
+    global ET
     if ET is not None:
         return
 
@@ -42,21 +40,13 @@ def ensure_elementtree_imported(verbosity, logfile):
     else:
         raise Exception("Failed to import an ElementTree implementation")
 
-    if hasattr(ET, 'iterparse'):
-        _dummy_stream = BYTES_IO(b'')
-        try:
-            ET.iterparse(_dummy_stream)
-            ET_has_iterparse = True
-        except NotImplementedError:
-            pass
-    Element_has_iter = hasattr(ET, 'ElementTree') and hasattr(ET.ElementTree, 'iter')
     if verbosity:
         etree_version = repr([
             (item, getattr(ET, item))
             for item in ET.__dict__.keys()
             if item.lower().replace('_', '') == 'version'
         ])
-        print(ET.__file__, ET.__name__, etree_version, ET_has_iterparse, file=logfile)
+        print(ET.__file__, ET.__name__, etree_version, file=logfile)
 
 
 def split_tag(tag):
@@ -271,7 +261,7 @@ class X12General(object):
             fprintf(self.logfile, "\n=== %s ===\n", heading)
         self.tree = ET.parse(stream)
         getmethod = self.tag2meth.get
-        for elem in self.tree.iter() if Element_has_iter else self.tree.getiterator():
+        for elem in self.tree.iter():
             if self.verbosity >= 3:
                 self.dump_elem(elem)
             meth = getmethod(elem.tag)
@@ -318,7 +308,7 @@ class X12Book(X12General):
         self.tree = ET.parse(stream)
         getmenu = self.core_props_menu.get
         props = {}
-        for elem in self.tree.iter() if Element_has_iter else self.tree.getiterator():
+        for elem in self.tree.iter():
             if self.verbosity >= 3:
                 self.dump_elem(elem)
             menu = getmenu(elem.tag)
@@ -419,7 +409,7 @@ class X12Book(X12General):
         datemode = cnv_xsd_boolean(elem.get('date1904'))
         if self.verbosity >= 2:
             self.dumpout('datemode=%r', datemode)
-        self.bk.datemode = datemode
+        self.bk.date_mode = datemode
 
     tag2meth = {
         'definedNames': do_defined_names,
@@ -435,10 +425,7 @@ class X12SST(X12General):
         self.bk = bk
         self.logfile = logfile
         self.verbosity = verbosity
-        if ET_has_iterparse:
-            self.process_stream = self.process_stream_iterparse
-        else:
-            self.process_stream = self.process_stream_findall
+        self.process_stream = self.process_stream_iterparse
 
     def process_stream_iterparse(self, stream, heading=None):
         if self.verbosity >= 2 and heading is not None:
@@ -460,23 +447,6 @@ class X12SST(X12General):
         if self.verbosity >= 3:
             for x, s in enumerate(sst):
                 fprintf(self.logfile, "SST x=%d s=%r\n", x, s)
-
-    def process_stream_findall(self, stream, heading=None):
-        if self.verbosity >= 2 and heading is not None:
-            fprintf(self.logfile, "\n=== %s ===\n", heading)
-        self.tree = ET.parse(stream)
-        si_tag = U_SSML12 + 'si'
-        elemno = -1
-        sst = self.bk._sharedstrings
-        for elem in self.tree.findall(si_tag):
-            elemno = elemno + 1
-            if self.verbosity >= 3:
-                fprintf(self.logfile, "element #%d\n", elemno)
-                self.dump_elem(elem)
-            result = get_text_from_si_or_is(self, elem)
-            sst.append(result)
-        if self.verbosity >= 2:
-            self.dumpout('Entries in SST: %d', len(sst))
 
 
 class X12Styles(X12General):
@@ -550,8 +520,7 @@ class X12Sheet(X12General):
         self.merged_cells = sheet.merged_cells
         self.warned_no_cell_name = 0
         self.warned_no_row_num = 0
-        if ET_has_iterparse:
-            self.process_stream = self.own_process_stream
+        self.process_stream = self.own_process_stream
 
     def own_process_stream(self, stream, heading=None):
         if self.verbosity >= 2 and heading is not None:
