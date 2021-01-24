@@ -2,12 +2,10 @@
 # This module is part of the xlrd package, which is released under a
 # BSD-style licence.
 
-import sys
+import logging
 from struct import unpack
 
 from .timemachine import *
-
-DEBUG = 0
 
 
 class XLRDError(Exception):
@@ -24,37 +22,40 @@ class BaseObject(object):
 
     _repr_these = []
 
-    def dump(self, f=None, header=None, footer=None, indent=0):
+    def dump(self, logger:logging = None, header:str = None, footer:str = None, indent:int = 0):
         """
-        :param f: open file object, to which the dump is written
+        :param logger: open file object, to which the dump is written
         :param header: text to write before the dump
         :param footer: text to write after the dump
         :param indent: number of leading spaces (for recursive calls)
         """
-        if f is None:
-            f = sys.stderr
+        if not logger:
+            # Not in debug mode
+            return
+
         if hasattr(self, "__slots__"):
-            alist = []
-            for attr in self.__slots__:
-                alist.append((attr, getattr(self, attr)))
+            attr_list = sorted((attr, getattr(self, attr)) for attr in self.__slots__)
         else:
-            alist = self.__dict__.items()
-        alist = sorted(alist)
+            attr_list = sorted(self.__dict__.items())
+
         pad = " " * indent
-        if header is not None: print(header, file=f)
-        list_type = type([])
-        dict_type = type({})
-        for attr, value in alist:
+
+        if header:
+            logger.debug(header)
+
+        for attr, value in attr_list:
             if getattr(value, 'dump', None) and attr != 'book':
-                value.dump(f,
-                           header="%s%s (%s object):" % (pad, attr, value.__class__.__name__),
-                           indent=indent + 4)
-            elif (attr not in self._repr_these and
-                  (isinstance(value, list_type) or isinstance(value, dict_type))):
-                print("%s%s: %s, len = %d" % (pad, attr, type(value), len(value)), file=f)
+                obj_name = value.__class__.__name__
+                value.dump(logger, header=f"{pad}{attr} ({obj_name} object):", indent=indent + 4)
+
+            elif attr not in self._repr_these and (isinstance(value, list) or isinstance(value, dict)):
+                logger.debug(f"{pad}{attr}: {type(value)}, len = {len(value)}")
+
             else:
-                fprintf(f, "%s%s: %r\n", pad, attr, value)
-        if footer is not None: print(footer, file=f)
+                logger.debug(f"{pad}{attr}: {value}")
+
+        if footer:
+            logger.debug(footer)
 
 
 FUN, FDT, FNU, FGE, FTX = range(5)  # unknown, date, number, general, text
@@ -273,7 +274,7 @@ def unpack_unicode(data, pos, lenlen=2):
     if options & 0x01:
         # Uncompressed UTF-16-LE
         rawstrg = data[pos:pos + 2 * nchars]
-        # if DEBUG: print "nchars=%d pos=%d rawstrg=%r" % (nchars, pos, rawstrg)
+        # print("nchars=%d pos=%d rawstrg=%r" % (nchars, pos, rawstrg))
         strg = unicode(rawstrg, 'utf_16_le')
         # pos += 2*nchars
     else:
@@ -515,25 +516,29 @@ for _buff in _brecstrg.splitlines():
 del _buff, _name, _brecstrg
 
 
-def hex_char_dump(strg, ofs, dlen, base=0, fout=sys.stdout, unnumbered=False):
-    endpos = min(ofs + dlen, len(strg))
+def hex_char_dump(strg, ofs, dlen, base=0, logger=None, unnumbered=False, header=None):
+    if not logger:
+        return
+
+    if header:
+        logger.debug(header)
+
+    end_pos = min(ofs + dlen, len(strg))
     pos = ofs
     numbered = not unnumbered
     num_prefix = ''
-    while pos < endpos:
-        endsub = min(pos + 16, endpos)
-        substrg = strg[pos:endsub]
-        lensub = endsub - pos
-        if lensub <= 0 or lensub != len(substrg):
-            fprintf(
-                sys.stdout,
-                '??? hex_char_dump: ofs=%d dlen=%d base=%d -> endpos=%d pos=%d endsub=%d substrg=%r\n',
-                ofs, dlen, base, endpos, pos, endsub, substrg)
+    while pos < end_pos:
+        end_sub = min(pos + 16, end_pos)
+        sub_str = strg[pos:end_sub]
+        len_sub = end_sub - pos
+        if len_sub <= 0 or len_sub != len(sub_str):
+            logger.debug(f'??? hex_char_dump: ofs={ofs} dlen={dlen} base={base} -> endpos={end_pos} '
+                         f'pos={pos} endsub={end_sub} substrg={sub_str}')
             break
-        hexd = ''.join("%02x " % BYTES_ORD(c) for c in substrg)
+        hexd = ''.join("%02x " % BYTES_ORD(c) for c in sub_str)
 
         chard = ''
-        for c in substrg:
+        for c in sub_str:
             c = chr(BYTES_ORD(c))
             if c == '\0':
                 c = '~'
@@ -543,8 +548,8 @@ def hex_char_dump(strg, ofs, dlen, base=0, fout=sys.stdout, unnumbered=False):
         if numbered:
             num_prefix = "%5d: " % (base + pos - ofs)
 
-        fprintf(fout, "%s     %-48s %s\n", num_prefix, hexd, chard)
-        pos = endsub
+        logger.debug(f"{num_prefix}     {hexd:48} {chard}")
+        pos = end_sub
 
 
 def biff_dump(mem, stream_offset, stream_len, base=0, fout=sys.stdout, unnumbered=False):
