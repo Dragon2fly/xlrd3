@@ -9,6 +9,7 @@ Module for formatting information.
 
 import re
 from struct import unpack
+from logging import getLogger
 
 from .biffh import (
     FDT, FGE, FNU, FTX, FUN, XL_CELL_DATE, XL_CELL_NUMBER, XL_CELL_TEXT,
@@ -17,7 +18,8 @@ from .biffh import (
 )
 from .timemachine import *
 
-DEBUG = 0
+
+logger = getLogger(__name__)
 
 _cellty_from_fmtty = {
     FNU: XL_CELL_NUMBER,
@@ -144,9 +146,8 @@ def nearest_colour_index(colour_map, rgb, debug=0):
             best_colourx = colourx
             if metric == 0:
                 break
-    if 0 and debug:
-        print("nearest_colour_index for %r is %r -> %r; best_metric is %d"
-              % (rgb, best_colourx, colour_map[best_colourx], best_metric))
+    logger.debug(f"nearest_colour_index for {rgb} is {best_colourx} -> {colour_map[best_colourx]}; "
+                 f"best_metric is {best_metric}")
     return best_colourx
 
 
@@ -263,7 +264,7 @@ def handle_font(book, data):
         return
     if not book.encoding:
         book.derive_encoding()
-    blah = DEBUG or book.verbosity >= 2
+
     bv = book.biff_version
     k = len(book.font_list)
     if k == 4:
@@ -322,12 +323,7 @@ def handle_font(book, data):
         f.underline_type = f.underlined  # None or Single
         f.family = 0  # Unknown / don't care
         f.character_set = 1  # System default (0 means "ANSI Latin")
-    if blah:
-        f.dump(
-            book.logfile,
-            header="--- handle_font: font[%d] ---" % f.font_index,
-            footer="-------------------",
-        )
+        f.dump(logger, header="--- handle_font: font[%d] ---" % f.font_index, footer="-------------------",)
 
 
 # === "Number formats" ===
@@ -492,7 +488,7 @@ def is_date_format_string(book, fmt):
             state = 0
         assert 0 <= state <= 2
     if book.verbosity >= 4:
-        print("is_date_format_string: reduced format is %s" % REPR(s), file=book.logfile)
+        logger.debug(f"is_date_format_string: reduced format is {REPR(s)}")
     s = fmt_bracketed_sub('', s)
     if s in non_date_formats:
         return False
@@ -514,66 +510,51 @@ def is_date_format_string(book, fmt):
         return False
     if date_count:
         if book.verbosity:
-            fprintf(book.logfile,
-                    'WARNING *** is_date_format: ambiguous d=%d n=%d fmt=%r\n',
-                    date_count, num_count, fmt)
+            logger.warning(f'is_date_format: ambiguous d={date_count} n={num_count} fmt={fmt}')
     elif not got_sep:
         if book.verbosity:
-            fprintf(book.logfile,
-                    "WARNING *** format %r produces constant result\n",
-                    fmt)
+            logger.warning(f"Format {fmt} produces constant result")
     return date_count > num_count
 
 
 def handle_format(self, data, rectype=XL_FORMAT):
-    DEBUG = 0
     bv = self.biff_version
     if rectype == XL_FORMAT2:
         bv = min(bv, 30)
     if not self.encoding:
         self.derive_encoding()
-    strpos = 2
+    str_pos = 2
     if bv >= 50:
-        fmtkey = unpack('<H', data[0:2])[0]
+        fmt_key = unpack('<H', data[0:2])[0]
     else:
-        fmtkey = self.actualfmtcount
+        fmt_key = self.actualfmtcount
         if bv <= 30:
-            strpos = 0
+            str_pos = 0
     self.actualfmtcount += 1
     if bv >= 80:
-        unistrg = unpack_unicode(data, 2)
+        uni_str = unpack_unicode(data, 2)
     else:
-        unistrg = unpack_string(data, strpos, self.encoding, lenlen=1)
-    blah = DEBUG or self.verbosity >= 3
-    if blah:
-        fprintf(self.logfile,
-                "FORMAT: count=%d fmtkey=0x%04x (%d) s=%r\n",
-                self.actualfmtcount, fmtkey, fmtkey, unistrg)
-    is_date_s = self.is_date_format_string(unistrg)
+        uni_str = unpack_string(data, str_pos, self.encoding, lenlen=1)
+
+    logger.debug(f"FORMAT: count={self.actualfmtcount} fmt_key=0x{fmt_key:04x} ({fmt_key}) s={uni_str}")
+    is_date_s = self.is_date_format_string(uni_str)
     ty = [FGE, FDT][is_date_s]
-    if not (fmtkey > 163 or bv < 50):
+    is_date_c = None
+    if not (fmt_key > 163 or bv < 50):
         # user_defined if fmtkey > 163
         # N.B. Gnumeric incorrectly starts these at 50 instead of 164 :-(
         # if earlier than BIFF 5, standard info is useless
-        std_ty = std_format_code_types.get(fmtkey, FUN)
+        std_ty = std_format_code_types.get(fmt_key, FUN)
         # print "std ty", std_ty
         is_date_c = std_ty == FDT
-        if self.verbosity and 0 < fmtkey < 50 and (is_date_c ^ is_date_s):
-            DEBUG = 2
-            fprintf(self.logfile,
-                    "WARNING *** Conflict between "
-                    "std format key %d and its format string %r\n",
-                    fmtkey, unistrg)
-    if DEBUG == 2:
-        fprintf(self.logfile,
-                "ty: %d; is_date_c: %r; is_date_s: %r; fmt_strg: %r",
-                ty, is_date_c, is_date_s, unistrg)
-    fmtobj = Format(fmtkey, ty, unistrg)
-    if blah:
-        fmtobj.dump(self.logfile,
-                    header="--- handle_format [%d] ---" % (self.actualfmtcount - 1,))
-    self.format_map[fmtkey] = fmtobj
-    self.format_list.append(fmtobj)
+        if self.verbosity and 0 < fmt_key < 50 and (is_date_c ^ is_date_s):
+            logger.warning(f"Conflict between std format key {fmt_key} and its format string {uni_str}")
+    logger.debug(f"ty: {ty}; is_date_c: {is_date_c}; is_date_s: {is_date_s}; fmt_strg: {uni_str}")
+
+    fmt_obj = Format(fmt_key, ty, uni_str)
+    fmt_obj.dump(logger, header=f"--- handle_format [{self.actualfmtcount - 1}] ---")
+    self.format_map[fmt_key] = fmt_obj
+    self.format_list.append(fmt_obj)
 
 
 # =============================================================================
@@ -581,22 +562,19 @@ def handle_format(self, data, rectype=XL_FORMAT):
 def handle_palette(book, data):
     if not book.formatting_info:
         return
-    blah = DEBUG or book.verbosity >= 2
+
     n_colours, = unpack('<H', data[:2])
     expected_n_colours = (16, 56)[book.biff_version >= 50]
-    if (DEBUG or book.verbosity >= 1) and n_colours != expected_n_colours:
-        fprintf(book.logfile,
-                "NOTE *** Expected %d colours in PALETTE record, found %d\n",
-                expected_n_colours, n_colours)
-    elif blah:
-        fprintf(book.logfile,
-                "PALETTE record with %d colours\n", n_colours)
+    if book.verbosity >= 1 and n_colours != expected_n_colours:
+        logger.debug(f"Expected {expected_n_colours} colours in PALETTE record, found {n_colours}")
+    else:
+        logger.debug(f"PALETTE record with {n_colours} colours")
     fmt = '<xx%di' % n_colours  # use i to avoid long integers
     expected_size = 4 * n_colours + 2
     actual_size = len(data)
     tolerance = 4
     if not expected_size <= actual_size <= expected_size + tolerance:
-        raise XLRDError('PALETTE record: expected size %d, actual size %d' % (expected_size, actual_size))
+        raise XLRDError(f'PALETTE record: expected size {expected_size}, actual size {actual_size}')
     colours = unpack(fmt, data[:expected_size])
     assert book.palette_record == []  # There should be only 1 PALETTE record
     # a colour will be 0xbbggrr
@@ -610,9 +588,8 @@ def handle_palette(book, data):
         new_rgb = (red, green, blue)
         book.palette_record.append(new_rgb)
         book.colour_map[8 + i] = new_rgb
-        if blah:
-            if new_rgb != old_rgb:
-                print("%2d: %r -> %r" % (i, old_rgb, new_rgb), file=book.logfile)
+        if new_rgb != old_rgb:
+            logger.debug(f"{i:2d}: {old_rgb} -> {new_rgb}")
 
 
 def palette_epilogue(book):
@@ -628,18 +605,17 @@ def palette_epilogue(book):
         if cx in book.colour_map:
             book.colour_indexes_used[cx] = 1
         elif book.verbosity:
-            print("Size of colour table:", len(book.colour_map), file=book.logfile)
-            fprintf(book.logfile, "*** Font #%d (%r): colour index 0x%04x is unknown\n",
-                    font.font_index, font.name, cx)
+            logger.debug(f"Size of colour table: {len(book.colour_map)}")
+            logger.debug(f"Font #{font.font_index} ({font.name}): colour index 0x{cx:04x} is unknown")
     if book.verbosity >= 1:
         used = sorted(book.colour_indexes_used.keys())
-        print("\nColour indexes used:\n%r\n" % used, file=book.logfile)
+        logger.debug(f"Colour indexes used:{used}")
 
 
 def handle_style(book, data):
     if not book.formatting_info:
         return
-    blah = DEBUG or book.verbosity >= 2
+
     bv = book.biff_version
     flag_and_xfx, built_in_id, level = unpack('<HBB', data[:4])
     xf_index = flag_and_xfx & 0x0fff
@@ -666,23 +642,19 @@ def handle_style(book, data):
             try:
                 name = unpack_unicode(data, 2, lenlen=2)
             except UnicodeDecodeError:
-                print("STYLE: built_in=%d xf_index=%d built_in_id=%d level=%d"
-                      % (built_in, xf_index, built_in_id, level), file=book.logfile)
-                print("raw bytes:", repr(data[2:]), file=book.logfile)
+                logger.debug(f"STYLE: built_in={built_in} xf_index={xf_index} built_in_id={built_in_id} level={level}")
+                logger.debug("raw bytes:"+repr(data[2:]))
                 raise
         else:
             name = unpack_string(data, 2, book.encoding, lenlen=1)
-        if blah and not name:
-            print("WARNING *** A user-defined style has a zero-length name", file=book.logfile)
+        if not name:
+            logger.warning("A user-defined style has a zero-length name")
     book.style_name_map[name] = (built_in, xf_index)
-    if blah:
-        fprintf(book.logfile, "STYLE: built_in=%d xf_index=%d built_in_id=%d level=%d name=%r\n",
-                built_in, xf_index, built_in_id, level, name)
+    logger.debug(f"STYLE: built_in={built_in} xf_index={xf_index} built_in_id={built_in_id} level={level} name={name}")
 
 
 def check_colour_indexes_in_obj(book, obj, orig_index):
-    alist = sorted(obj.__dict__.items())
-    for attr, nobj in alist:
+    for attr, nobj in sorted(obj.__dict__.items()):
         if hasattr(nobj, 'dump'):
             check_colour_indexes_in_obj(book, nobj, orig_index)
         elif attr.find('colour_index') >= 0:
@@ -690,8 +662,7 @@ def check_colour_indexes_in_obj(book, obj, orig_index):
                 book.colour_indexes_used[nobj] = 1
                 continue
             oname = obj.__class__.__name__
-            print("*** xf #%d : %s.%s =  0x%04x (unknown)"
-                  % (orig_index, oname, attr, nobj), file=book.logfile)
+            logger.debug(f"*** xf #{orig_index} : {oname}.{attr} =  0x{nobj:04x} (unknown)")
 
 
 def fill_in_standard_formats(book):
@@ -708,8 +679,6 @@ def fill_in_standard_formats(book):
 
 def handle_xf(self, data):
     # self is a Book instance
-    # DEBUG = 0
-    blah = DEBUG or self.verbosity >= 3
     bv = self.biff_version
     xf = XF()
     xf.alignment = XFAlignment()
@@ -869,14 +838,7 @@ def handle_xf(self, data):
         orientation = (pkd_align_orient & 0xC0) >> 6
         xf.alignment.rotation = [0, 255, 90, 180][orientation]
         reg = pkd_used >> 2
-        attr_stems = [
-            'format',
-            'font',
-            'alignment',
-            'border',
-            'background',
-            'protection',
-        ]
+        attr_stems = ['format', 'font', 'alignment', 'border', 'background', 'protection']
         for attr_stem in attr_stems:
             attr = "_" + attr_stem + "_flag"
             setattr(xf, attr, reg & 1)
@@ -989,12 +951,7 @@ def handle_xf(self, data):
     xf.xf_index = len(self.xf_list)
     self.xf_list.append(xf)
     self.xfcount += 1
-    if blah:
-        xf.dump(
-            self.logfile,
-            header="--- handle_xf: xf[%d] ---" % xf.xf_index,
-            footer=" ",
-        )
+    xf.dump(logger, header="--- handle_xf: xf[%d] ---" % xf.xf_index, footer=" ")
     try:
         fmt = self.format_map[xf.format_key]
         cellty = _cellty_from_fmtty[fmt.type]
@@ -1005,14 +962,13 @@ def handle_xf(self, data):
     # Now for some assertions ...
     if self.formatting_info:
         if self.verbosity and xf.is_style and xf.parent_style_index != 0x0FFF:
-            msg = "WARNING *** XF[%d] is a style XF but parent_style_index is 0x%04x, not 0x0fff\n"
-            fprintf(self.logfile, msg, xf.xf_index, xf.parent_style_index)
+            msg = f"XF[{xf.xf_index}] is a style XF but parent_style_index is 0x{xf.parent_style_index:04x}, not 0x0fff"
+            logger.warning(msg)
         check_colour_indexes_in_obj(self, xf, xf.xf_index)
     if xf.format_key not in self.format_map:
-        msg = "WARNING *** XF[%d] unknown (raw) format key (%d, 0x%04x)\n"
+        msg = f"XF[{xf.xf_index}] unknown (raw) format key ({xf.format_key}, 0x{xf.format_key:04x})"
         if self.verbosity:
-            fprintf(self.logfile, msg,
-                    xf.xf_index, xf.format_key, xf.format_key)
+            logger.warning(msg)
         xf.format_key = 0
 
 
@@ -1020,20 +976,16 @@ def xf_epilogue(self):
     # self is a Book instance.
     self._xf_epilogue_done = 1
     num_xfs = len(self.xf_list)
-    blah = DEBUG or self.verbosity >= 3
-    blah1 = DEBUG or self.verbosity >= 1
-    if blah:
-        fprintf(self.logfile, "xf_epilogue called ...\n")
+    logger.debug("xf_epilogue called ...")
 
     def check_same(book_arg, xf_arg, parent_arg, attr):
         # the _arg caper is to avoid a Warning msg from Python 2.1 :-(
         if getattr(xf_arg, attr) != getattr(parent_arg, attr):
-            fprintf(book_arg.logfile,
-                    "NOTE !!! XF[%d] parent[%d] %s different\n",
-                    xf_arg.xf_index, parent_arg.xf_index, attr)
+            logger.debug(f"NOTE !!! XF[{xf_arg.xf_index}] parent[{parent_arg.xf_index}] {attr} different")
 
     for xfx in xrange(num_xfs):
         xf = self.xf_list[xfx]
+        psi = xf.parent_style_index
 
         try:
             fmt = self.format_map[xf.format_key]
@@ -1046,48 +998,36 @@ def xf_epilogue(self):
             continue
         if xf.is_style:
             continue
-        if not (0 <= xf.parent_style_index < num_xfs):
-            if blah1:
-                fprintf(self.logfile,
-                        "WARNING *** XF[%d]: is_style=%d but parent_style_index=%d\n",
-                        xf.xf_index, xf.is_style, xf.parent_style_index)
+        if not (0 <= psi < num_xfs):
+            logger.warning(f"XF[{xf.xf_index}]: is_style={xf.is_style} but parent_style_index={psi}")
             # make it conform
-            xf.parent_style_index = 0
+            psi = 0
         if self.biff_version >= 30:
-            if blah1:
-                if xf.parent_style_index == xf.xf_index:
-                    fprintf(self.logfile,
-                            "NOTE !!! XF[%d]: parent_style_index is also %d\n",
-                            xf.xf_index, xf.parent_style_index)
-                elif not self.xf_list[xf.parent_style_index].is_style:
-                    fprintf(self.logfile,
-                            "NOTE !!! XF[%d]: parent_style_index is %d; style flag not set\n",
-                            xf.xf_index, xf.parent_style_index)
-            if blah1 and xf.parent_style_index > xf.xf_index:
-                fprintf(self.logfile,
-                        "NOTE !!! XF[%d]: parent_style_index is %d; out of order?\n",
-                        xf.xf_index, xf.parent_style_index)
-            parent = self.xf_list[xf.parent_style_index]
+            if psi == xf.xf_index:
+                logger.debug(f"NOTE !!! XF[{xf.xf_index}]: parent_style_index is also {psi}")
+            elif not self.xf_list[psi].is_style:
+                logger.debug(f"NOTE !!! XF[{xf.xf_index}]: parent_style_index is {psi}; style flag not set")
+            if psi > xf.xf_index:
+                logger.debug(f"NOTE !!! XF[{xf.xf_index}]: parent_style_index is {psi}; out of order?")
+            parent = self.xf_list[psi]
             if not xf._alignment_flag and not parent._alignment_flag:
-                if blah1: check_same(self, xf, parent, 'alignment')
+                check_same(self, xf, parent, 'alignment')
             if not xf._background_flag and not parent._background_flag:
-                if blah1: check_same(self, xf, parent, 'background')
+                check_same(self, xf, parent, 'background')
             if not xf._border_flag and not parent._border_flag:
-                if blah1: check_same(self, xf, parent, 'border')
+                check_same(self, xf, parent, 'border')
             if not xf._protection_flag and not parent._protection_flag:
-                if blah1: check_same(self, xf, parent, 'protection')
+                check_same(self, xf, parent, 'protection')
             if not xf._format_flag and not parent._format_flag:
-                if blah1 and xf.format_key != parent.format_key:
-                    fprintf(self.logfile,
-                            "NOTE !!! XF[%d] fmtk=%d, parent[%d] fmtk=%r\n%r / %r\n",
-                            xf.xf_index, xf.format_key, parent.xf_index, parent.format_key,
-                            self.format_map[xf.format_key].format_str,
-                            self.format_map[parent.format_key].format_str)
+                if xf.format_key != parent.format_key:
+                    logger.debug(f"NOTE !!! XF[{xf.xf_index}] fmtk={xf.format_key}, "
+                                 f"parent[{parent.xf_index}] fmtk={parent.format_key}"
+                                 f"{self.format_map[xf.format_key].format_str} / "
+                                 f"{self.format_map[parent.format_key].format_str}")
             if not xf._font_flag and not parent._font_flag:
-                if blah1 and xf.font_index != parent.font_index:
-                    fprintf(self.logfile,
-                            "NOTE !!! XF[%d] fontx=%d, parent[%d] fontx=%r\n",
-                            xf.xf_index, xf.font_index, parent.xf_index, parent.font_index)
+                if xf.font_index != parent.font_index:
+                    logger.debug(f"NOTE !!! XF[{xf.xf_index}] fontx={xf.font_index}, "
+                                 f"parent[{parent.xf_index}] fontx={parent.font_index}")
 
 
 def initialise_book(book):
