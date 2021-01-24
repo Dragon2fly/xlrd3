@@ -36,7 +36,7 @@ if __name__ == "__main__":
     import traceback
     import gc
 
-    from xlrd.timemachine import xrange, REPR
+    from xlrd3.timemachine import xrange, REPR
 
 
     class LogHandler(object):
@@ -75,7 +75,7 @@ if __name__ == "__main__":
 
     def get_row_data(bk, sh, rowx, colrange):
         result = []
-        dmode = bk.datemode
+        dmode = bk.date_mode
         ctys = sh.row_types(rowx)
         cvals = sh.row_values(rowx)
         for colx in colrange:
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     def bk_header(bk):
         print()
         print("BIFF version: %s; datemode: %s"
-            % (xlrd.biff_text_from_num[bk.biff_version], bk.datemode))
+              % (xlrd.biff_text_from_num[bk.biff_version], bk.date_mode))
         print("codepage: %r (encoding: %s); countries: %r"
             % (bk.codepage, bk.encoding, bk.countries))
         print("Last saved by: %r" % bk.user_name)
@@ -298,7 +298,7 @@ if __name__ == "__main__":
         else:
             logfile = sys.stdout
         mmap_opt = options.mmap
-        mmap_arg = xlrd.USE_MMAP
+        mmap_arg = True
         if mmap_opt in (1, 0):
             mmap_arg = mmap_opt
         elif mmap_opt != -1:
