@@ -127,25 +127,24 @@ def open_workbook(filename=None, logfile=sys.stdout, verbosity=0, use_mmap=True,
         raise XLRDError('ZIP file contents not a known type of workbook')
 
     from . import book
-    bk = book.open_workbook_xls(filename=filename, logfile=logfile, verbosity=verbosity, use_mmap=use_mmap,
+    bk = book.open_workbook_xls(filename=filename, verbosity=verbosity, use_mmap=use_mmap,
                                 file_contents=file_contents, encoding_override=encoding_override,
                                 formatting_info=formatting_info, on_demand=on_demand, ragged_rows=ragged_rows,
                                 ignore_wb_corruption=ignore_workbook_corruption, )
     return bk
 
 
-def dump(filename, outfile=sys.stdout, unnumbered=False):
+def dump(filename, unnumbered=False):
     """
     For debugging: dump an XLS file's BIFF records in char & hex.
 
     :param filename: The path to the file to be dumped.
-    :param outfile: An open file, to which the dump is written.
     :param unnumbered: If true, omit offsets (for meaningful diffs).
     """
     from .biffh import biff_dump
     bk = Book()
-    bk.biff2_8_load(filename=filename, logfile=outfile, )
-    biff_dump(bk.mem, bk.base, bk.stream_len, 0, outfile, unnumbered)
+    bk.biff2_8_load(filename=filename)
+    biff_dump(bk.mem, bk.base, bk.stream_len, 0, unnumbered)
 
 
 def count_records(filename, outfile=sys.stdout):
@@ -158,5 +157,5 @@ def count_records(filename, outfile=sys.stdout):
     """
     from .biffh import biff_count_records
     bk = Book()
-    bk.biff2_8_load(filename=filename, logfile=outfile, )
+    bk.biff2_8_load(filename=filename)
     biff_count_records(bk.mem, bk.base, bk.stream_len, outfile)
