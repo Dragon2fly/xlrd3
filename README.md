@@ -67,3 +67,8 @@ for rx in range(sh.nrows):
 *   Ksenia Marasanova: sample Macintosh and non-Latin1 files, alpha testing
 *   Backporting to Python 2.1 was partially funded by Journyx - provider of timesheet and project accounting solutions (http://journyx.com/).
 *   Provision of formatting information in version 0.6.1 was funded by Simplistix Ltd (http://www.simplistix.co.uk/)
+
+# Changelog
+## v1.1.0
+* support python3.9
+* refactored some underlying code for better maintenance
